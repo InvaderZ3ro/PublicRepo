@@ -970,99 +970,10 @@ If (Test-Path -Path $UnattendPrefixPath) {
         $UnattendPrefix = $true
     }
 }
-If (Test-Path -Path $UnattendComputerNamePath) {
-    $UnattendComputerNameFile = Get-ChildItem -Path $UnattendComputerNamePath
-    If ($UnattendComputerNameFile) {
-        $UnattendComputerName = $true
-    }
-}
 
-#Ask for device name if unattend exists
-If ($Unattend -or $UnattendPrefix -or $UnattendComputerName) {
-    Write-SectionHeader 'Device Name Selection'
-    if ($Unattend -and $UnattendPrefix) {
-        Writelog 'Unattend file found with prefixes.txt. Getting prefixes.'
-        $UnattendPrefixes = @(Get-content $UnattendPrefixFile)
-        $UnattendPrefixCount = $UnattendPrefixes.Count
-        If ($UnattendPrefixCount -gt 1) {
-            WriteLog "Found $UnattendPrefixCount Prefixes"
-            $array = @()
-            for ($i = 0; $i -le $UnattendPrefixCount - 1; $i++) {
-                $Properties = [ordered]@{Number = $i + 1 ; DeviceNamePrefix = $UnattendPrefixes[$i] }
-                $array += New-Object PSObject -Property $Properties
-            }
-            $array | Format-Table -AutoSize -Property Number, DeviceNamePrefix
-            do {
-                try {
-                    $var = $true
-                    [int]$PrefixSelected = Read-Host 'Enter the prefix number to use for the device name'
-                    $PrefixSelected = $PrefixSelected - 1
-                }
-                catch {
-                    Write-Host 'Input was not in correct format. Please enter a valid prefix number'
-                    $var = $false
-                }
-            } until (($PrefixSelected -le $UnattendPrefixCount - 1) -and $var) 
-            $PrefixToUse = $array[$PrefixSelected].DeviceNamePrefix
-            WriteLog "$PrefixToUse was selected"
-            Write-Host "`n$PrefixToUse was selected as device name prefix"
-        }
-        elseif ($UnattendPrefixCount -eq 1) {
-            WriteLog "Found $UnattendPrefixCount Prefix"
-            Write-Host "Found $UnattendPrefixCount Prefix"
-            $PrefixToUse = $UnattendPrefixes[0]
-            WriteLog "Will use $PrefixToUse as device name prefix"
-            Write-Host "Will use $PrefixToUse as device name prefix"
-        }
-        #Get serial number to append. This can make names longer than 15 characters. Trim any leading or trailing whitespace
-        $serial = (Get-CimInstance -ClassName win32_bios).SerialNumber.Trim()
-        #Combine prefix with serial
-        $computername = ($PrefixToUse + $serial) -replace "\s", "" # Remove spaces because windows does not support spaces in the computer names
-        #If computername is longer than 15 characters, reduce to 15. Sysprep/unattend doesn't like ComputerName being longer than 15 characters even though Windows accepts it
-        If ($computername.Length -gt 15) {
-            $computername = $computername.substring(0, 15)
-        }
-        $computername = Set-Computername($computername)
-        Writelog "Computer name will be set to $computername"
-        Write-Host "Computer name will be set to $computername"
-    }
-    elseif ($Unattend -and $UnattendComputerName){
-        Writelog 'Unattend file found with SerialComputerNames.csv. Getting name for current computer.'
-        $SerialComputerNames = Import-Csv -Path $UnattendComputerNameFile.FullName -Delimiter ","
 
-        $SerialNumber = (Get-CimInstance -Class Win32_Bios).SerialNumber
-        $SCName = $SerialComputerNames | Where-Object { $_.SerialNumber -eq $SerialNumber }
 
-        If ($SCName) {
-            [string]$computername = $SCName.ComputerName
-            $computername = Set-Computername($computername)
-            Writelog "Computer name will be set to $computername"
-            Write-Host "Computer name will be set to $computername"
-        }
-        else {
-            Writelog 'No matching serial number found in SerialComputerNames.csv. Setting random computer name to complete setup.'
-            Write-Host 'No matching serial number found in SerialComputerNames.csv. Setting random computer name to complete setup.'
-            [string]$computername = ("FFU-" + ( -join ((48..57) + (65..90) + (97..122) | Get-Random -Count 11 | ForEach-Object { [char]$_ })))
-            $computername = Set-Computername($computername)
-            Writelog "Computer name will be set to $computername"
-            Write-Host "Computer name will be set to $computername"
-        }
-    }
-    elseif ($Unattend){
-        Writelog 'Unattend file found with no prefixes.txt, asking for name'
-        Write-Host 'Unattend file found but no prefixes.txt. Please enter a device name.'
-        [string]$computername = Read-Host 'Enter device name'
-        $computername = Set-Computername($computername)
-        Writelog "Computer name will be set to $computername"
-        Write-Host "Computer name will be set to $computername"
-    }
-    else {
-        WriteLog 'Device naming assets detected without unattend.xml. Skipping device naming prompts.'
-    }
-}
-else {
-    WriteLog 'No unattend folder found. Device name will be set via PPKG, AP JSON, or default OS name.'
-}
+
 
 #If both AP and PPKG folder found with files, ask which to use.
 If ($autopilot -eq $true -and $PPKG -eq $true) {
