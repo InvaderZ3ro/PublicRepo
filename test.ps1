@@ -6,7 +6,13 @@ $ip | out-file -filepath "Z:\$env:computername.txt
 #  Invoke-Command -ScriptBlock $scriptBlock
 
 
-
+$LogFileName = 'ScriptLog.txt'
+$USBDrive = "Z\:"
+New-item -Path $USBDrive -Name $LogFileName -ItemType "file" -Force | Out-Null
+$LogFile = $USBDrive + $LogFilename
+$version = '2601.1Preview'
+WriteLog 'Begin Logging'
+WriteLog "Script version: $version"
 
 # Display banner and version
 $banner = @"
