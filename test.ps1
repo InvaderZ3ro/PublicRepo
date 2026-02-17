@@ -1,15 +1,7 @@
 $ip = ipconfig /all
 $ip | out-file -filepath "Z:\$env:computername.txt
-#to invoke the script
-#  $scriptContent = Invoke-WebRequest -Uri "https://raw.githubusercontent.com/InvaderZ3ro/PublicRepo/refs/heads/main/test.ps1" -UseBasicParsing
-#  $scriptBlock = [Scriptblock]::Create($scriptContent.Content)
-#  Invoke-Command -ScriptBlock $scriptBlock
 
-
-$LogFileName = 'ScriptLog.txt'
 $USBDrive = "Z\:"
-New-item -Path $USBDrive -Name $LogFileName -ItemType "file" -Force | Out-Null
-$LogFile = $USBDrive + $LogFilename
 
 # Display banner and version
 $banner = @"
