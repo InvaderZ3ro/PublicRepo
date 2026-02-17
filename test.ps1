@@ -10,9 +10,6 @@ $LogFileName = 'ScriptLog.txt'
 $USBDrive = "Z\:"
 New-item -Path $USBDrive -Name $LogFileName -ItemType "file" -Force | Out-Null
 $LogFile = $USBDrive + $LogFilename
-$version = 'KW-WIP'
-WriteLog 'Begin Logging'
-WriteLog "Script version: $version"
 
 # Display banner and version
 $banner = @"
@@ -26,8 +23,6 @@ $banner = @"
                                                                                                                                                                 
 "@
 Write-Host $banner -ForegroundColor Cyan
-Write-Host "Version $version" -ForegroundColor Cyan
-
 
 #Find FFU Files
 Write-SectionHeader 'FFU File Selection'
@@ -296,7 +291,7 @@ if ($null -eq $DriverSourcePath) {
         WriteLog "Drivers folder not found at $DriversPath. Skipping driver installation."
     }
 }
-#Partition drive
+
 
 #Apply FFU
 Write-SectionHeader -Title 'Applying FFU'
