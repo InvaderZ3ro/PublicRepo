@@ -1026,7 +1026,7 @@ If ($Unattend -or $UnattendPrefix -or $UnattendComputerName) {
         Writelog "Computer name will be set to $computername"
         Write-Host "Computer name will be set to $computername"
     }
-    elseif ($Unattend -and $UnattendComputerName) {
+    elseif ($Unattend -and $UnattendComputerName){
         Writelog 'Unattend file found with SerialComputerNames.csv. Getting name for current computer.'
         $SerialComputerNames = Import-Csv -Path $UnattendComputerNameFile.FullName -Delimiter ","
 
@@ -1048,7 +1048,7 @@ If ($Unattend -or $UnattendPrefix -or $UnattendComputerName) {
             Write-Host "Computer name will be set to $computername"
         }
     }
-    elseif ($Unattend) {
+    elseif ($Unattend){
         Writelog 'Unattend file found with no prefixes.txt, asking for name'
         Write-Host 'Unattend file found but no prefixes.txt. Please enter a device name.'
         [string]$computername = Read-Host 'Enter device name'
