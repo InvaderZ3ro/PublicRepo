@@ -28,74 +28,6 @@ $banner = @"
 Write-Host $banner -ForegroundColor Cyan
 Write-Host "Version $version" -ForegroundColor Cyan
 
-# Select target disk - prompt user if multiple disks found
-if ($diskCount -eq 1) {
-    $selectedDisk = $diskDriveCandidates[0]
-    WriteLog "Single fixed disk detected: DiskNumber=$($selectedDisk.Index), Model=$($selectedDisk.Model)"
-    Write-Host "Single fixed disk detected: $($selectedDisk.Model)"
-}
-else {
-    WriteLog "Found $diskCount fixed disks. Prompting for selection."
-    Write-Host "Found $diskCount fixed disks"
-    
-    # Build list of available disk indexes for validation
-    $validDiskIndexes = @($diskDriveCandidates | ForEach-Object { $_.Index })
-    
-    # Display disk list using actual disk index as the selection value
-    $displayList = @()
-    foreach ($currentDisk in $diskDriveCandidates) {
-        $sizeGB = [math]::Round(($currentDisk.Size / 1GB), 2)
-        $displayList += [PSCustomObject]@{
-            Disk         = $currentDisk.Index
-            'Size (GB)'  = $sizeGB
-            'Sector'     = $currentDisk.BytesPerSector
-            'Bus Type'   = $currentDisk.InterfaceType
-            Model        = $currentDisk.Model
-        }
-    }
-    $displayList | Format-Table -AutoSize -Property Disk, 'Size (GB)', Sector, 'Bus Type', Model
-
-    do {
-        try {
-            $var = $true
-            [int]$diskSelection = Read-Host 'Enter the disk number to apply the FFU to'
-        }
-        catch {
-            Write-Host 'Input was not in correct format. Please enter a valid disk number'
-            $var = $false
-        }
-        # Validate selected disk is in the list of available disks
-        if ($var -and $validDiskIndexes -notcontains $diskSelection) {
-            Write-Host "Invalid disk number. Please select from the available disks."
-            $var = $false
-        }
-    } until ($var)
-
-    $selectedDisk = $diskDriveCandidates | Where-Object { $_.Index -eq $diskSelection }
-    WriteLog "Disk selection: DiskNumber=$($selectedDisk.Index), Model=$($selectedDisk.Model), SizeGB=$([math]::Round(($selectedDisk.Size / 1GB), 2)), BusType=$($selectedDisk.InterfaceType)"
-    Write-Host "`nDisk $($selectedDisk.Index) selected: $($selectedDisk.Model)"
-}
-
-# Set variables from selected disk
-$PhysicalDeviceID = $selectedDisk.DeviceID
-$BytesPerSector = $selectedDisk.BytesPerSector
-$DiskID = $selectedDisk.Index
-$diskSizeGB = [math]::Round(($selectedDisk.Size / 1GB), 2)
-
-# Create hardDrive object for Get-SystemInformation compatibility
-$hardDrive = [PSCustomObject]@{
-    DeviceID       = $PhysicalDeviceID
-    BytesPerSector = $BytesPerSector
-    DiskSize       = $selectedDisk.Size
-    DiskNumber     = $DiskID
-}
-
-WriteLog "Physical DeviceID is $PhysicalDeviceID"
-WriteLog "DiskNumber is $DiskID with size $diskSizeGB GB"
-
-# Gather and write system information
-$sysInfoObject = Get-SystemInformation -HardDrive $hardDrive
-Write-SystemInformation -SystemInformation $sysInfoObject
 
 #Find FFU Files
 Write-SectionHeader 'FFU File Selection'
@@ -140,16 +72,6 @@ else {
     $errorMessage = 'No FFU files found.'
     Writelog $errorMessage
     Stop-Script -Message $errorMessage
-}
-
-#FindAP
-$APFolder = $USBDrive + "Autopilot\"
-If (Test-Path -Path $APFolder) {
-    [array]$APFiles = @(Get-ChildItem -Path $APFolder*.json)
-    $APFilesCount = $APFiles.Count
-    if ($APFilesCount -ge 1) {
-        $autopilot = $true
-    }
 }
  
 #Find Drivers
@@ -375,28 +297,11 @@ if ($null -eq $DriverSourcePath) {
     }
 }
 #Partition drive
-Writelog 'Clean Disk'
-$originalProgressPreference = $ProgressPreference
-try {
-    $ProgressPreference = 'SilentlyContinue'
-    $Disk = Get-Disk -Number $DiskID
-    if ($Disk.PartitionStyle -ne "RAW") {
-        $Disk | clear-disk -RemoveData -RemoveOEM -Confirm:$false
-    }
-}
-catch {
-    WriteLog 'Cleaning disk failed. Exiting'
-    throw $_
-}
-finally {
-    $ProgressPreference = $originalProgressPreference
-}
-
-Writelog 'Cleaning Disk succeeded'
 
 #Apply FFU
 Write-SectionHeader -Title 'Applying FFU'
 WriteLog "Applying FFU to $PhysicalDeviceID"
+$PhysicalDeviceID = "\\.\PhysicalDisk0"
 WriteLog "Running command dism /apply-ffu /ImageFile:$FFUFileToInstall /ApplyDrive:$PhysicalDeviceID"
 #In order for Applying Image progress bar to show up, need to call dism directly. Might be a better way to handle, but must have progress bar show up on screen.
 dism /apply-ffu /ImageFile:$FFUFileToInstall /ApplyDrive:$PhysicalDeviceID
@@ -470,45 +375,7 @@ If (Test-Path -Path $WinRE) {
     Get-Disk | Where-Object Number -eq $DiskID | Get-Partition | Where-Object Type -eq Recovery | Remove-PartitionAccessPath -AccessPath R:
     WriteLog 'Registering location of recovery tools succeeded'
 }
-#Autopilot JSON
-If ($APFileToInstall) {
-    Write-SectionHeader -Title 'Applying Autopilot Configuration'
-    WriteLog "Copying $APFileToInstall to W:\windows\provisioning\autopilot"
-    Invoke-process xcopy.exe "$APFileToInstall W:\Windows\provisioning\autopilot\"
-    WriteLog "Copying $APFileToInstall to W:\windows\provisioning\autopilot succeeded"
-    # Rename file in W:\Windows\Provisioning\Autopilot to AutoPilotConfigurationFile.json
-    try {
-        Rename-Item -Path "W:\Windows\Provisioning\Autopilot\$APFileName" -NewName 'W:\Windows\Provisioning\Autopilot\AutoPilotConfigurationFile.json'
-        WriteLog "Renamed W:\Windows\Provisioning\Autopilot\$APFilename to W:\Windows\Provisioning\Autopilot\AutoPilotConfigurationFile.json"
-    }
-    
-    catch {
-        Writelog "Copying $APFileToInstall to W:\windows\provisioning\autopilot failed with error: $_"
-        throw $_
-    }
-}
-#Apply PPKG
-If ($PPKGFileToInstall) {
-    Write-SectionHeader -Title 'Applying Provisioning Package'
-    try {
-        #Make sure to delete any existing PPKG on the USB drive
-        Get-Childitem -Path $USBDrive\*.ppkg | ForEach-Object {
-            Remove-item -Path $_.FullName
-        }
-        WriteLog "Copying $PPKGFileToInstall to $USBDrive"
-        Write-Host "Copying $PPKGFileToInstall to $USBDrive"
-        # Quote paths to handle PPKG filenames with spaces
-        Invoke-process xcopy.exe """$PPKGFileToInstall"" ""$USBDrive"""
-        WriteLog "Copying $PPKGFileToInstall to $USBDrive succeeded"
-        Write-Host "Copying $PPKGFileToInstall to $USBDrive succeeded"
-    }
 
-    catch {
-        Writelog "Copying $PPKGFileToInstall to $USBDrive failed with error: $_"
-        Write-Host "Copying $PPKGFileToInstall to $USBDrive failed with error: $_"
-        throw $_
-    }
-}
 #Set DeviceName
 If ($computername) {
     Write-SectionHeader -Title 'Applying Computer Name and Unattend Configuration'
